@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dinner Time</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="title">
+    <div class="title-row">
+      <h1>Dinner Time!</h1>
+    </div>
+  </header>
+
+  <main class="stage">
+    <div class="layout">
+      <aside class="panel" aria-label="Controls">
+        <section>
+          <h3>Distances</h3>
+          <div class="btn-stack">
+            <button class="btn" type="button" data-distance="physical" aria-pressed="false"><span class="swatch" style="--swatch: #ffd23f"></span>Physical distance</button>
+            <button class="btn" type="button" data-distance="travel" aria-pressed="false"><span class="swatch" style="--swatch: #ff5d8f"></span>Travel distance</button>
+            <button class="btn" type="button" data-distance="visual" aria-pressed="false"><span class="swatch" style="--swatch: #5ad1ff"></span>Visual distance</button>
+            <button class="btn" type="button" data-distance="sound" aria-pressed="false"><span class="swatch" style="--swatch: #7ee07a"></span>Sound distance</button>
+          </div>
+        </section>
+
+        <section class="music">
+          <h3>Music</h3>
+          <button id="music-toggle" class="btn" type="button" aria-pressed="false">♪ Music off</button>
+          <label class="slider">
+            <span>Volume</span>
+            <input id="music-volume" type="range" min="0" max="100" value="60">
+          </label>
+        </section>
+      </aside>
+
+      <div class="screen">
+        <div class="frame">
+          <canvas id="scene" width="384" height="240" role="img"
+            aria-label="A two-storey house at night. Upstairs a boy plays video games; downstairs his mother has put dinner on the table."></canvas>
+          <div id="speech" class="speech" aria-live="polite" hidden></div>
+          <p id="movement-hint" class="movement-hint">
+            Click on one of the characters and move using
+            <span class="arrow-keys" aria-label="left, up, right and down arrow keys">&#8592; &#8593; &#8594; &#8595;</span>
+          </p>
+          <div id="win-screen" class="win-screen" role="dialog" aria-modal="true" aria-labelledby="win-title" aria-describedby="win-message" hidden>
+            <h2 id="win-title">YOU WON!</h2>
+            <p id="win-message">Everyone is at the table. Dinner time!</p>
+            <button id="restart" class="btn restart" type="button">Restart</button>
+          </div>
+        </div>
+      </div>
+
+      <aside class="panel" aria-label="Outputs">
+        <section>
+          <h3>Distances</h3>
+          <dl class="readouts">
+            <div><dt>Physical</dt><dd id="out-physical">—</dd></div>
+            <div><dt>Travel</dt><dd id="out-travel">—</dd></div>
+            <div><dt>Visual</dt><dd id="out-visual">—</dd></div>
+            <div><dt>Sound</dt><dd id="out-sound">—</dd></div>
+          </dl>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <script src="js/pixel.js"></script>
+  <script src="js/sprites.js"></script>
+  <script src="js/house.js"></script>
+  <script src="js/characters.js"></script>
+  <script src="js/distances.js"></script>
+  <script src="js/music.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/speech.js"></script>
+  <script src="js/ui.js"></script>
+</body>
+</html>
