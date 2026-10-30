@@ -198,6 +198,42 @@ body {
   .movement-hint { animation: none; }
 }
 
+.objective-toast {
+  position: absolute;
+  z-index: 5;
+  top: 5%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: max-content;
+  max-width: 90%;
+  padding: 10px 14px;
+  border: 2px solid #7ee07a;
+  background: rgba(20, 35, 27, 0.96);
+  box-shadow: 0 0 14px rgba(126, 224, 122, 0.2);
+  color: #fff;
+  font-size: clamp(12px, 1.3vw, 17px);
+  line-height: 1.4;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.objective-toast[hidden] { display: none; }
+.objective-toast.celebrating { animation: objective-pop 2s ease-out both; }
+.objective-toast-check { color: #7ee07a; font-size: 26px; }
+.objective-toast-title { display: block; color: #7ee07a; font-size: 0.8em; }
+
+@keyframes objective-pop {
+  0% { opacity: 0; transform: translate(-50%, 5px) scale(0.96); }
+  15%, 75% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -4px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .objective-toast.celebrating { animation: none; }
+}
+
 /* ---- Sidebars ------------------------------------------------------- */
 
 .panel {
@@ -219,6 +255,43 @@ body {
   font-size: 9px;
   letter-spacing: 1px;
   color: var(--pink);
+}
+
+.objectives { border-top: 2px solid var(--panel-edge); padding-top: 16px; }
+.objective-list { display: flex; flex-direction: column; gap: 12px; list-style: none; margin: 0; padding: 0; }
+.objective-list li { display: flex; align-items: flex-start; gap: 9px; color: #fff; font-size: 14px; line-height: 1.4; }
+.objective-mark { flex: none; width: 13px; height: 13px; margin-top: 3px; border: 1px solid currentColor; }
+.objective-list li.completed { color: #7ee07a; }
+.completed .objective-mark { border: 0; font: bold 19px/13px sans-serif; }
+.completed .objective-mark::before { content: '\2713'; }
+.objective-list .objective-final { margin-top: 4px; font-size: 18px; }
+.objective-final .objective-mark { margin-top: 6px; }
+
+.distance-pair {
+  display: block;
+  width: 100%;
+  margin: 0 0 16px;
+  padding: 9px 8px;
+  border: 2px solid var(--panel-edge);
+  border-radius: 0;
+  color: var(--gold);
+  background: #24123f;
+  font-family: 'DotGothic16', monospace;
+  font-size: 16px;
+  cursor: pointer;
+  color-scheme: dark;
+}
+
+.distance-pair:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+}
+
+.selected-distance-pair {
+  margin: 0 0 16px;
+  color: var(--gold);
+  font-size: 16px;
+  line-height: 1.4;
 }
 
 /* Pixel-style push button */

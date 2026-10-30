@@ -1,4 +1,4 @@
-// The four kinds of distance between Mom and the boy, switched on from the
+// The four kinds of distance between the chosen characters, switched on from the
 // controls sidebar. So far:
 //   physical — a straight line from neck to neck, through walls and floors
 //   travel   — the length of the walk between them, along floors and stairs
@@ -17,8 +17,9 @@ const Distances = (() => {
   const active = { physical: false, travel: false, visual: false, sound: false };
 
   function physical() {
-    const { mom, boy } = Characters.necks();
-    return Math.hypot(boy.x - mom.x, boy.y - mom.y) / PX_PER_M;
+    const necks = Characters.necks();
+    const [a, b] = Characters.distancePair().map(id => necks[id]);
+    return Math.hypot(b.x - a.x, b.y - a.y) / PX_PER_M;
   }
 
   function pathLength(pts) {
@@ -90,7 +91,7 @@ const Distances = (() => {
   // the glass — the same either way round.
   function sight() {
     const eyes = Characters.eyes();
-    const who = Characters.viewer(), other = who === 'mom' ? 'boy' : 'mom';
+    const who = Characters.viewer(), other = Characters.distancePair().find(id => id !== who);
     const viewer = eyes[who], target = eyes[other];
     const block = blockedAt(viewer, target);
     if (block === null) {
@@ -139,12 +140,13 @@ const Distances = (() => {
   }
 
   function drawPhysical(ctx, t) {
-    const { mom, boy } = Characters.necks();
+    const necks = Characters.necks();
+    const [a, b] = Characters.distancePair().map(id => necks[id]);
     const color = COLORS.physical;
-    dashedLine(ctx, mom, boy, color, t);
-    endpoint(ctx, mom, color);
-    endpoint(ctx, boy, color);
-    label(ctx, `${physical().toFixed(1)} m`, { x: (mom.x + boy.x) / 2, y: (mom.y + boy.y) / 2 }, color);
+    dashedLine(ctx, a, b, color, t);
+    endpoint(ctx, a, color);
+    endpoint(ctx, b, color);
+    label(ctx, `${physical().toFixed(1)} m`, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, color);
   }
 
   // The walking route from Mom to the boy, traced just above the floor and
@@ -355,8 +357,9 @@ const Distances = (() => {
     const color = COLORS.sound;
 
     // When the other one starts calling, clear the air and start afresh
-    if (Characters.viewer() !== speaker) {
-      speaker = Characters.viewer();
+    const source = Characters.distancePair().join(':') + ':' + Characters.viewer();
+    if (source !== speaker) {
+      speaker = source;
       bursts = [];
       lastBurst = -Infinity;
     }

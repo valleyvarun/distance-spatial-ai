@@ -84,6 +84,13 @@ const Characters = (() => {
     sitSide: Sprites.catSitSide, sitFront: Sprites.catSitFront,
   };
   const characters = [...people, cat];
+  const charactersById = { mom, boy, cat };
+  const DISTANCE_PAIRS = { 'mom-boy': ['mom', 'boy'], 'boy-cat': ['boy', 'cat'], 'cat-mom': ['cat', 'mom'] };
+  let pair = DISTANCE_PAIRS['mom-boy'];
+  const distancePair = () => [...pair];
+  function setDistancePair(value) {
+    if (DISTANCE_PAIRS[value]) pair = DISTANCE_PAIRS[value];
+  }
   for (const c of characters) {
     Object.assign(c, { depth: 0, facing: 1, dist: 0, route: [], goal: null, pendingSeat: null, byKeys: false, nextBlink: 1 + Math.random() * 3, blinkUntil: 0 });
   }
@@ -91,6 +98,15 @@ const Characters = (() => {
   let selected = null;
   let won = false, winListener = null;
   const onWin = fn => { winListener = fn; };
+  const REQUIRED_OBJECTIVES = ['mom-game', 'cat-game', 'cat-table', 'mom-cat', 'dinner'];
+  const completedObjectives = new Set();
+  let objectiveListener = null;
+  const onObjective = fn => { objectiveListener = fn; };
+  function completeObjective(id) {
+    if (completedObjectives.has(id)) return;
+    completedObjectives.add(id);
+    if (objectiveListener) objectiveListener(id);
+  }
   let hasMoved = false, firstMoveListener = null;
   const onFirstMove = fn => { firstMoveListener = fn; };
   let canvas, t = 0;
@@ -136,6 +152,7 @@ const Characters = (() => {
 
   // Where the held keys want the selected character to go
   function keyGoal(c) {
+    if (c === cat && catAtTable()) return null;
     const h = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
     const v = (keys.down ? 1 : 0) - (keys.up ? 1 : 0);
     if (!h && !v) return null;
@@ -160,6 +177,7 @@ const Characters = (() => {
   }
 
   // ---- Sitting ----------------------------------------------------------
+  const catAtTable = () => CHAIRS.includes(cat.seat);
   const nearTable = c => (c.seat && c.seat !== CUSHION) ||
     (c.path === 'ground' && c.x >= TABLE_ZONE.x0 && c.x <= TABLE_ZONE.x1);
   const takenBy = (chair, c) => characters.find(o => o !== c && (o.seat === chair || o.pendingSeat === chair));
@@ -188,12 +206,25 @@ const Characters = (() => {
     c.route = [];
     c.goal = null;
     c.byKeys = false;
+    if (c === cat && catAtTable() && selected === cat) {
+      select(null);
+      for (const key in keys) keys[key] = false;
+    }
+    if (seat === CUSHION && c === mom) completeObjective('mom-game');
+    if (seat === CUSHION && c === cat) completeObjective('cat-game');
+    if (CHAIRS.includes(seat) && c === cat) completeObjective('cat-table');
     if (c === cat && CHAIRS.includes(seat)) say('mom', 'This food is not for you, Bollu!');
   }
 
   function checkWin() {
-    if (!won && !CHAIRS.includes(cat.seat) &&
-        people.every(person => person.state === 'sit' && CHAIRS.includes(person.seat))) {
+    if (won) return;
+    const atDinner = !CHAIRS.includes(cat.seat) &&
+      people.every(person => person.state === 'sit' && CHAIRS.includes(person.seat));
+    if (!atDinner) return;
+    // Dinner can be achieved early, but victory also requires every other
+    // objective and this dinner arrangement to be true right now.
+    completeObjective('dinner');
+    if (REQUIRED_OBJECTIVES.every(id => completedObjectives.has(id))) {
       won = true;
       for (const k in keys) keys[k] = false;
       select(null);
@@ -229,6 +260,7 @@ const Characters = (() => {
   const momShooing = () => t - shooStarted < SHOO_DURATION;
 
   function shooCat() {
+    const wasAtTable = CHAIRS.includes(cat.seat);
     if (selected === cat) {
       select(null);
       for (const k in keys) keys[k] = false;
@@ -238,6 +270,7 @@ const Characters = (() => {
     mom.facing = destination < mom.x ? -1 : 1;
     shooStarted = t;
     walkTo(cat, { path: 'ground', x: destination });
+    if (wasAtTable) completeObjective('mom-cat');
   }
 
   // ---- Movement ---------------------------------------------------------
@@ -476,6 +509,7 @@ const Characters = (() => {
   const onSelect = fn => { selectListener = fn; };
 
   function select(c) {
+    if (c === cat && catAtTable()) return;
     selected = c;
     if (selectListener) selectListener(c ? idOf(c) : null);
   }
@@ -485,6 +519,9 @@ const Characters = (() => {
     const [px, py] = scenePoint(e);
     const chair = chairAt(px, py);
     const hit = personAt(px, py);
+    // Bollu stays put until Mom sends him away; clicks cannot select him
+    // or pass through him to issue a floor/chair movement command.
+    if (hit === cat && catAtTable()) return;
     // Switching characters always takes priority over destination actions,
     // including when the character being clicked is playing the game.
     if (hit && hit !== selected) return select(hit);
@@ -518,7 +555,9 @@ const Characters = (() => {
   function onPointerMove(e) {
     if (won) return;
     const [px, py] = scenePoint(e);
-    canvas.style.cursor = personAt(px, py) || (selected && (chairAt(px, py) || floorAt(px, py))) ? 'pointer' : 'default';
+    const hit = personAt(px, py);
+    canvas.style.cursor = hit === cat && catAtTable() ? 'default'
+      : hit || (selected && (chairAt(px, py) || floorAt(px, py))) ? 'pointer' : 'default';
   }
 
   const KEYMAP = {
@@ -528,7 +567,7 @@ const Characters = (() => {
 
   function onKey(e) {
     if (won) return;
-    if (e.target instanceof HTMLInputElement) return; // e.g. the volume slider
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
     if (e.code === 'Escape' && e.type === 'keydown') return select(null);
     const k = KEYMAP[e.code];
     if (!k) return;
@@ -549,8 +588,23 @@ const Characters = (() => {
   const boyAtTv = () => characters.some(c => c.seat === CUSHION);
 
   // Centre of a character's neck or eyes in world coordinates, whatever their pose
+  const CAT_ANCHORS = {
+    sleep: { neck: [5, 12], eye: [3, 9], mouth: [4, 11], ear: [6, 5] },
+    side: { neck: [15, 9], eye: [18, 5], mouth: [19, 7], ear: [17, 2] },
+    sitSide: { neck: [8, 8], eye: [11, 5], mouth: [13, 6], ear: [10, 2] },
+    front: { neck: [8, 10], eye: [8, 6], mouth: [8, 7], ear: [4, 2] },
+    cushion: { neck: [10, 10], eye: [10, 7], mouth: [10, 9], ear: [5, 3] },
+  };
   function anchorOf(c, part) {
-    const b = bounds(c), a = c.anchors[part];
+    const b = bounds(c);
+    if (c === cat) {
+      const pose = c.seat === CUSHION ? 'cushion' : c.seat?.pose === 'front' ? 'front'
+        : c.seat?.pose === 'side' ? 'sitSide' : c.state === 'sleep' ? 'sleep' : 'side';
+      const [x, y] = CAT_ANCHORS[pose][part];
+      const left = (pose === 'side' && c.facing < 0) || (pose === 'sitSide' && c.seat.facing < 0);
+      return { x: b.x + (left ? b.w - 1 - x : x) + 0.5, y: b.y + y + 0.5 };
+    }
+    const a = c.anchors[part];
     if (c.seat === CUSHION) {
       const point = a.cushion || a.front;
       return { x: b.x + point[0] + 0.5, y: b.y + point[1] + 0.5 };
@@ -561,22 +615,22 @@ const Characters = (() => {
     return { x: b.x + (facingLeft ? b.w - 1 - nx : nx) + 0.5, y: b.y + ny + 0.5 };
   }
 
-  const necks = () => ({ mom: anchorOf(mom, 'neck'), boy: anchorOf(boy, 'neck') });
-  const eyes = () => ({ mom: anchorOf(mom, 'eye'), boy: anchorOf(boy, 'eye') });
+  const necks = () => Object.fromEntries(pair.map(id => [id, anchorOf(charactersById[id], 'neck')]));
+  const eyes = () => Object.fromEntries(pair.map(id => [id, anchorOf(charactersById[id], 'eye')]));
 
-  // Someone ('mom' or 'boy') as seen in a vertical mirror at x = mirrorX:
+  // A character as seen in a vertical mirror at x = mirrorX:
   // flipped across it
   function drawReflection(ctx, who, mirrorX, alpha) {
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.translate(2 * mirrorX, 0);
     ctx.scale(-1, 1);
-    drawPerson(ctx, who === 'mom' ? mom : boy);
+    drawPerson(ctx, charactersById[who]);
     ctx.restore();
   }
 
-  // Whose point of view to show: the boy's when he's selected, else Mom's
-  const viewer = () => (selected === boy ? 'boy' : 'mom');
+  // Use the selected character's perspective only when they belong to the pair.
+  const viewer = () => selected && pair.includes(idOf(selected)) ? idOf(selected) : pair[0];
 
   // Top-centre of someone's head ('mom' or 'boy'), in world coordinates
   function headTop(who) {
@@ -584,21 +638,22 @@ const Characters = (() => {
     return { x: b.x + b.w / 2, y: b.y };
   }
 
-  // One calling the other: the speaker's mouth and the listener's ear. Mom
-  // calls the boy — unless he's selected, then he's the one calling.
+  // The active pair's speaker and listener, using the same perspective as sight.
   function voice() {
-    const [speaker, listener] = selected === boy ? [boy, mom] : [mom, boy];
+    const who = viewer();
+    const speaker = charactersById[who], listener = charactersById[pair.find(id => id !== who)];
     return { mouth: anchorOf(speaker, 'mouth'), ear: anchorOf(listener, 'ear') };
   }
 
-  // The way Mom would walk to the boy — along the floors and up or down the
+  // The walking route between the pair — along the floors and up or down the
   // stairs — as a list of points on the walking line. Someone sitting
   // starts from where they'd stand up.
   function travelPath() {
     const at = c => ({ path: c.path, x: c.x, depth: c.depth });
-    return [at(mom), ...route(mom, at(boy))].map(pathPoint);
+    const [from, to] = pair.map(id => charactersById[id]);
+    return [at(from), ...route(from, at(to))].map(pathPoint);
   }
 
   const catSleeping = () => cat.state === 'sleep';
-  return { STOREY, init, update, draw, catSleeping, onSelect, onDialogue, onWin, onFirstMove, boyAtTv, necks, eyes, headTop, travelPath, drawReflection, viewer, voice };
+  return { STOREY, init, update, draw, catSleeping, onSelect, onDialogue, onWin, onFirstMove, onObjective, boyAtTv, distancePair, setDistancePair, necks, eyes, headTop, travelPath, drawReflection, viewer, voice };
 })();

@@ -21,6 +21,11 @@
       <aside class="panel" aria-label="Controls">
         <section>
           <h3>Distances</h3>
+          <select id="distance-pair" class="distance-pair" aria-label="Characters to compare">
+            <option value="mom-boy" selected>mom - son</option>
+            <option value="boy-cat">son - cat</option>
+            <option value="cat-mom">cat - mom</option>
+          </select>
           <div class="btn-stack">
             <button class="btn" type="button" data-distance="physical" aria-pressed="false"><span class="swatch" style="--swatch: #ffd23f"></span>Physical distance</button>
             <button class="btn" type="button" data-distance="travel" aria-pressed="false"><span class="swatch" style="--swatch: #ff5d8f"></span>Travel distance</button>
@@ -44,8 +49,12 @@
           <canvas id="scene" width="384" height="240" role="img"
             aria-label="A two-storey house at night. Upstairs a boy plays video games; downstairs his mother has put dinner on the table and a cat sleeps under the stairs."></canvas>
           <div id="speech" class="speech" aria-live="polite" hidden></div>
+          <div id="objective-toast" class="objective-toast" role="status" aria-live="polite" hidden>
+            <span class="objective-toast-check" aria-hidden="true">&#10003;</span>
+            <div><span class="objective-toast-title">Objective complete</span><span id="objective-toast-label"></span></div>
+          </div>
           <p id="movement-hint" class="movement-hint">
-            Click a character, then click a floor or move using
+            Click a character, then move using
             <span class="arrow-keys" aria-label="left, up, right and down arrow keys">&#8592; &#8593; &#8594; &#8595;</span>
           </p>
           <div id="win-screen" class="win-screen" role="dialog" aria-modal="true" aria-labelledby="win-title" aria-describedby="win-message" hidden>
@@ -59,12 +68,23 @@
       <aside class="panel" aria-label="Outputs">
         <section>
           <h3>Distances</h3>
+          <p id="selected-distance-pair" class="selected-distance-pair" aria-live="polite">mom - son</p>
           <dl class="readouts">
             <div><dt>Physical</dt><dd id="out-physical">—</dd></div>
             <div><dt>Travel</dt><dd id="out-travel">—</dd></div>
             <div><dt>Visual</dt><dd id="out-visual">—</dd></div>
             <div><dt>Sound</dt><dd id="out-sound">—</dd></div>
           </dl>
+        </section>
+        <section class="objectives" aria-labelledby="objectives-title">
+          <h3 id="objectives-title">Objectives</h3>
+          <ul class="objective-list">
+            <li data-objective="mom-game"><span class="objective-mark" aria-hidden="true"></span><span class="objective-label">Mom plays video game</span></li>
+            <li data-objective="cat-game"><span class="objective-mark" aria-hidden="true"></span><span class="objective-label">Cat plays video game</span></li>
+            <li data-objective="cat-table"><span class="objective-mark" aria-hidden="true"></span><span class="objective-label">Cat sits at table</span></li>
+            <li data-objective="mom-cat"><span class="objective-mark" aria-hidden="true"></span><span class="objective-label">Mom sends the cat away</span></li>
+            <li data-objective="dinner" class="objective-final"><span class="objective-mark" aria-hidden="true"></span><span class="objective-label">Dinner time!</span></li>
+          </ul>
         </section>
       </aside>
     </div>
