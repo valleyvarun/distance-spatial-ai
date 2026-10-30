@@ -700,24 +700,32 @@ const House = (() => {
 
   // ---- Wall mirror at the foot of the stairs ---------------------------
   function drawMirror(g) {
-    Px.poly(g, [[92, 86], [104, 78], [104, 176], [92, 169]], '#7a5414');
-    Px.poly(g, [[93, 87], [103, 80], [103, 174], [93, 168]], '#f2c14e');
-    Px.poly(g, [[95, 88], [101, 83], [101, 171], [95, 166]], '#9fe6ff');
-    Px.poly(g, [[95, 135], [101, 131], [101, 171], [95, 166]], '#7fd0f0');
-    Px.line(g, 96, 104, 100, 96, '#ffffff');
-    Px.line(g, 96, 110, 100, 103, '#e0f8ff');
-    Px.line(g, 96, 128, 100, 121, '#ffffff');
-    Px.line(g, 97, 156, 100, 151, '#ffffff');
+    // The left edge is nearest the viewer (+Z): taller there, tapering
+    // toward the right edge farther into the room. Keep the glass centred
+    // on the same reflection plane used by the distance calculations.
+    Px.poly(g, [[92, 78], [104, 86], [104, 169], [92, 176]], '#7a5414');
+    Px.poly(g, [[93, 80], [103, 87], [103, 168], [93, 174]], '#f2c14e');
+    Px.poly(g, [[95, 83], [101, 88], [101, 166], [95, 171]], '#9fe6ff');
+    Px.poly(g, [[95, 131], [101, 135], [101, 166], [95, 171]], '#7fd0f0');
+    Px.line(g, 96, 96, 100, 104, '#ffffff');
+    Px.line(g, 96, 103, 100, 110, '#e0f8ff');
+    Px.line(g, 96, 121, 100, 128, '#ffffff');
+    Px.line(g, 96, 151, 99, 156, '#ffffff');
     Px.dot(g, 98, 81, '#ff5e6c');
   }
 
   // ---- Staircase from the ground floor up to the kid's room ------------
   function drawStairs(g) {
     const x0 = 108, x1 = 186, rise = 6, run = 6;
+    const firstStep = 2; // Omit the bottom two steps; all others stay in place.
+    const startX = x0 + firstStep * run;
     const top = x => 186 - rise * (Math.floor((x - x0) / run) + 1);
-    const under = x => Math.max(114, Math.min(186, 186 - (x - 114)));
+    // Cut the exposed end level with the bottom riser, rather than leaving
+    // the sloping support projecting below it as a triangular tip.
+    const endY = top(startX) + rise;
+    const under = x => Math.max(114, Math.min(endY, 186 - (x - 114)));
 
-    for (let x = x0; x < x1; x++) {
+    for (let x = startX; x < x1; x++) {
       const yt = top(x), yb = under(x);
       Px.rect(g, x, yt, 1, yb - yt, '#e3984f');
       Px.rect(g, x, yb - 4, 1, 4, '#b5652f');
@@ -726,21 +734,22 @@ const House = (() => {
       if ((x - x0) % run === 0) Px.rect(g, x, yt, 1, rise, '#b86a34');
       Px.dot(g, x, yb, '#4a2414');
     }
-    for (let i = 0; i < 13; i++) {
+    Px.line(g, startX - 1, endY, startX + run, endY, '#4a2414');
+    for (let i = firstStep; i < 13; i++) {
       const sx = x0 + i * run, sy = 186 - rise * (i + 1);
       Px.rect(g, sx - 1, sy - 1, run + 1, 1, '#4a2414');
       Px.rect(g, sx - 1, sy - 1, 1, rise + 1, '#4a2414');
     }
 
     // Handrail with balusters
-    for (let i = 0; i < 13; i++) {
+    for (let i = firstStep; i < 13; i++) {
       const bx = x0 + 3 + i * run;
       Px.rect(g, bx, 166 - (bx - x0), 1, top(bx) - (166 - (bx - x0)), '#c27a42');
     }
-    Px.line(g, 108, 166, 187, 87, '#7a3e1e');
-    Px.line(g, 108, 165, 187, 86, '#b8683a');
-    box(g, 106, 162, 4, 18, '#c98146', '#4a2414');
-    Px.rect(g, 105, 161, 6, 2, '#7a3e1e');
+    Px.line(g, startX, 166 - firstStep * rise, 187, 87, '#7a3e1e');
+    Px.line(g, startX, 165 - firstStep * rise, 187, 86, '#b8683a');
+    box(g, startX - 2, 162 - firstStep * rise, 4, 18, '#c98146', '#4a2414');
+    Px.rect(g, startX - 3, 161 - firstStep * rise, 6, 2, '#7a3e1e');
     box(g, 186, 84, 4, 24, '#c98146', '#4a2414');
     Px.rect(g, 185, 83, 6, 2, '#7a3e1e');
   }

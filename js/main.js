@@ -246,15 +246,10 @@
       ctx.save();
       ctx.translate(x, y + 3);
       ctx.scale(facing, 1);
-      const step = state === 'walk' ? Math.floor(dist / 4) % 2 : 0;
-      Px.rect(ctx, -9, -8, 3, 2, out); Px.rect(ctx, -10, -11, 2, 4, fur);
-      Px.ellipse(ctx, -1, -7, 7, 4, out); Px.ellipse(ctx, -1, -7, 6, 3, fur);
-      Px.disc(ctx, 6, -9, 4, out); Px.disc(ctx, 6, -9, 3, fur);
-      Px.rect(ctx, 3, -14, 2, 3, out); Px.rect(ctx, 8, -14, 2, 3, out);
-      Px.dot(ctx, 4, -13, '#ff9aa8'); Px.dot(ctx, 8, -13, '#ff9aa8');
-      Px.dot(ctx, 8, -9, out); Px.dot(ctx, 9, -7, '#ff7a8a');
-      for (const dx of [-4, -1, 2]) Px.dot(ctx, dx, -9, dark);
-      Px.rect(ctx, -5, -4, 2, 4 - step, out); Px.rect(ctx, 3, -4, 2, 3 + step, out);
+      const sprite = state === 'walk'
+        ? Sprites.catWalk[Math.floor(dist / 4) % Sprites.catWalk.length]
+        : Sprites.catIdle;
+      ctx.drawImage(sprite, -10, -17);
       ctx.restore();
       return;
     }

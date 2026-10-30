@@ -236,6 +236,43 @@ const Sprites = (() => {
     { legs: swapLegs(MOM_PASSING, 's', 'S', 'f', 'F'), reach: 0 },
   ], { x: 7, y: 18, len: 10, sleeve: 'P', light: 'p' }, MOM_PALETTE, 16);
 
+  // Reuse Mom's profile and outfit; only the near arm changes for the shoo.
+  // Extra space on the facing side leaves room for the waving hand.
+  const shooRight = [
+    { elbow: [14, 21], hand: [18, 13] },
+    { elbow: [15, 20], hand: [22, 15] },
+    { elbow: [16, 19], hand: [24, 19], point: true },
+  ].map(({ elbow, hand, point }) => {
+    const legs = ['.....kSk.ksk....', '.....kSk.ksk....', '....kFFk.kffk...', '....kkkk.kkkk...'];
+    const grid = [...MOM_SIDE, ...legs].map(row => row.padEnd(28, '.').split(''));
+    const set = (x, y, color) => { if (grid[y] && x >= 0 && x < 28) grid[y][x] = color; };
+    const pixels = [];
+    const joints = [[8, 19], elbow, hand];
+    for (let segment = 0; segment < 2; segment++) {
+      const [ax, ay] = joints[segment], [bx, by] = joints[segment + 1];
+      const steps = Math.max(Math.abs(bx - ax), Math.abs(by - ay));
+      for (let i = 0; i <= steps; i++) {
+        const x = Math.round(ax + (bx - ax) * i / steps);
+        const y = Math.round(ay + (by - ay) * i / steps);
+        const skin = segment === 1 && i >= steps - 3;
+        pixels.push([x, y, skin ? 's' : 'p'], [x, y + 1, skin ? 'S' : 'P']);
+      }
+    }
+    if (point) {
+      pixels.push([25, 19, 's'], [26, 19, 's']);
+    } else {
+      pixels.push([hand[0], hand[1] - 1, 's'], [hand[0], hand[1] - 2, 's'],
+        [hand[0] + 1, hand[1] - 1, 's'], [hand[0] + 1, hand[1], 's']);
+    }
+    for (const [x, y] of pixels) {
+      set(x - 1, y, 'k'); set(x + 1, y, 'k');
+      set(x, y - 1, 'k'); set(x, y + 1, 'k');
+    }
+    for (const [x, y, color] of pixels) set(x, y, color);
+    return Px.sprite(grid.map(row => row.join('')), MOM_PALETTE, 28);
+  });
+  const momShoo = { right: shooRight, left: shooRight.map(Px.flip) };
+
   const BOY_SIDE = [
     '...k..k.......',
     '..khkkhk.k....',
@@ -430,25 +467,25 @@ const Sprites = (() => {
     g: '#51446d', b: '#ff5d8f', u: '#5ad1ff',
   };
   const CAT_SIT_SIDE = [
-    '.......k....k...',
-    '......kfk..kfk..',
-    '......kpfkkpfk..',
-    '.....kfffffffk..',
+    '.......k...k....',
+    '......kfkkkfk...',
+    '......kfpffpk...',
+    '.....kfhffddfk..',
     '.....kfhfffffk..',
-    '.....kfffkefck..',
-    '.....kfffffcpk..',
-    '......kffccck...',
+    '.....kfdffkefk..',
+    '.....kfffffcccpk.',
+    '......kffcccck..',
     '......kfccck....',
-    '.....kffccfk....',
-    '....kdffccfk....',
+    '.....kfhccfk....',
+    '....kffhccfk....',
     '...kfdffccfk....',
-    '..kfffffccfk....',
-    '..kfdfffccfk....',
-    '..kfdfffccfk....',
-    '.kffffffcfck....',
-    '.kffffkfckfck...',
-    'kddfffkfckfck...',
-    'kfffffkcckcck...',
+    '..kffdffccfk....',
+    '..kfhfffccfk....',
+    '.kffhfffccfk....',
+    '.kfdfffkfcfk....',
+    'kfdffffkfcfk....',
+    'kffkkffkfcck...',
+    'kddfffkkcccck..',
     '.kkkkkkkkkkkk...',
   ];
   const CAT_SIT_FRONT = [
@@ -499,6 +536,44 @@ const Sprites = (() => {
   ];
   // Explicit padding keeps these asymmetrical poses from being mirrored.
   const catSprite = (rows, width) => Px.sprite(rows.map(row => row.padEnd(width, '.')), CAT_PALETTE, width);
+  // A true side profile: raised tail, tabby back, green eye and cream socks.
+  // All frames share a 21 x 17 footprint so selection and floor alignment stay fixed.
+  const CAT_SIDE = [
+    '..............k...k..',
+    '.............kfkkkfk.',
+    '.kk..........kfpffpk.',
+    'kfhk.........kfhddfk.',
+    'kffk........kfhfffffk',
+    'kdfk........kffffkefk',
+    '.kffk..kkkkkkfdffccck',
+    '.kffkkkfhddfhffcccpk',
+    '..kfffffhddfhfffcck.',
+    '...kfdffhfffdfffck..',
+    '...kfdffffffdffcck..',
+    '...kfffffffhfffcck..',
+    '....kffkcccckkfck...',
+    '....kffkkkkk.kfck...',
+    '....kfdk.....kfck...',
+    '....kcck.....kcck...',
+    '....kkkk.....kkkk...',
+  ];
+  const catIdle = catSprite(CAT_SIDE, 21);
+  const catWalk = [
+    catSprite([...CAT_SIDE.slice(0, 12),
+      '....kffkcccckkfck...',
+      '...kffk.kkkk.kfck...',
+      '..kfdk.......kfck..',
+      '..kcck.......kcck..',
+      '..kkkk.......kkkk..'], 21),
+    catIdle,
+    catSprite([...CAT_SIDE.slice(0, 12),
+      '....kffkcccckkfck...',
+      '.....kffkkkkkfck...',
+      '......kfdk.kfck....',
+      '......kcck.kcck....',
+      '......kkkk.kkkk....'], 21),
+    catIdle,
+  ];
   const catSide = catSprite(CAT_SIT_SIDE, 16);
   const catSitSide = { right: catSide, left: Px.flip(catSide), seatRow: 19 };
   const catSitFront = {
@@ -510,6 +585,8 @@ const Sprites = (() => {
     i === 13 ? '...kccfffddfffcck...' : i === 15 ? '..kgbgkffffffkgugk..' : row), 20)];
 
   return {
+    catIdle,
+    catWalk,
     momGame,
     catSitSide,
     catSitFront,
@@ -521,6 +598,7 @@ const Sprites = (() => {
     mom: Px.sprite(MOM, MOM_PALETTE, 18),
     momBlink: Px.sprite(MOM.map((row, i) => MOM_BLINK[i] || row), MOM_PALETTE, 18),
     momWalk,
+    momShoo,
     boyHead: Px.sprite(BOY_HEAD, BOY_PALETTE, 20),
     boyBody: [Px.sprite(BOY_BODY, BOY_PALETTE, 20), Px.sprite(BOY_BODY_MASH, BOY_PALETTE, 20)],
     boyFront: Px.sprite(BOY_FRONT, BOY_PALETTE, 16),

@@ -3,20 +3,37 @@
 // table, clicking a chair makes them walk over and sit down.
 const Characters = (() => {
   // ---- Where people can walk -------------------------------------------
-  // Three straight paths joined end to end, each measured by x: the ground
-  // floor, the staircase (rises one pixel per pixel) and the upstairs floor.
+  // Step off to the floor between the mirror and stairs, then forward
+  // into the room. The connector follows that bend instead of hanging
+  // directly below the raised stair edge.
+  // The remaining stairs retain their original one-to-one slope.
   // The two floors are one storey (78 px = 3 m) apart, the same as the
   // floor slabs in the drawing, so the stairs climb exactly 3 m.
   const STOREY = 78;
   const GROUND_Y = 184, UPPER_Y = GROUND_Y - STOREY;
-  const FOOT = 107, TOP = FOOT + STOREY; // where the stairs meet each floor
+  const FOOT = 119, TOP = 185;
+  const ENTRY_X = 108, LANDING_Y = 178, STAIR_FOOT_Y = 172;
+  const FLOOR_DEPTH = GROUND_Y - LANDING_Y;
+  const LANDING_DEPTH = FLOOR_DEPTH + Math.hypot(FOOT - ENTRY_X, LANDING_Y - STAIR_FOOT_Y);
+  const ENTRY_REGION = { x0: 101, x1: 160 };
+  function landingPoint(depth) {
+    if (depth <= FLOOR_DEPTH) return { x: ENTRY_X, y: GROUND_Y - depth };
+    const progress = (depth - FLOOR_DEPTH) / (LANDING_DEPTH - FLOOR_DEPTH);
+    return { x: ENTRY_X + (FOOT - ENTRY_X) * progress, y: LANDING_Y + (STAIR_FOOT_Y - LANDING_Y) * progress };
+  }
+  const landingGoal = depth => ({ path: 'landing', x: landingPoint(depth).x, depth });
   const PATHS = {
     ground: { x0: 101, x1: 358, y: () => GROUND_Y },
-    stairs: { x0: FOOT, x1: TOP, y: x => GROUND_Y - (x - FOOT) },
+    landing: { x0: ENTRY_X, x1: FOOT, y: () => LANDING_Y },
+    stairs: { x0: FOOT, x1: TOP, y: x => STAIR_FOOT_Y - (x - FOOT) },
     upper: { x0: TOP, x1: 358, y: () => UPPER_Y },
   };
-  const ORDER = ['ground', 'stairs', 'upper'];
-  const EXIT = { 'ground>stairs': FOOT, 'stairs>ground': FOOT, 'stairs>upper': TOP, 'upper>stairs': TOP };
+  const ORDER = ['ground', 'landing', 'stairs', 'upper'];
+  const EXIT = {
+    'ground>landing': { x: ENTRY_X }, 'landing>ground': { x: ENTRY_X, depth: 0 },
+    'landing>stairs': { x: FOOT, depth: LANDING_DEPTH }, 'stairs>landing': { x: FOOT },
+    'stairs>upper': { x: TOP }, 'upper>stairs': { x: TOP },
+  };
 
   const STEP_PX = 4;       // distance walked per animation frame
   const STAIR_PACE = 0.55; // horizontal speed on the stairs vs. the flat
@@ -68,7 +85,7 @@ const Characters = (() => {
   };
   const characters = [...people, cat];
   for (const c of characters) {
-    Object.assign(c, { facing: 1, dist: 0, route: [], goal: null, pendingSeat: null, byKeys: false, nextBlink: 1 + Math.random() * 3, blinkUntil: 0 });
+    Object.assign(c, { depth: 0, facing: 1, dist: 0, route: [], goal: null, pendingSeat: null, byKeys: false, nextBlink: 1 + Math.random() * 3, blinkUntil: 0 });
   }
 
   let selected = null;
@@ -81,7 +98,8 @@ const Characters = (() => {
 
   const ARROW = Px.sprite(['kkkkkkk', 'kyyyyyk', '.kyyyk.', '..kyk..', '...k...'], { k: '#2b1d2e', y: '#ffd23f' }, 7);
 
-  const footY = c => Math.round(PATHS[c.path].y(c.x));
+  const pathPoint = p => p.path === 'landing' ? landingPoint(p.depth ?? 0) : { x: p.x, y: PATHS[p.path].y(p.x) };
+  const footY = c => Math.round(pathPoint(c).y);
 
   // ---- Routing ----------------------------------------------------------
   // Walk to the end of each path in turn until we're on the goal's path.
@@ -91,7 +109,7 @@ const Characters = (() => {
     const j = ORDER.indexOf(goal.path);
     while (i !== j) {
       const next = i + Math.sign(j - i);
-      steps.push({ path: ORDER[i], x: EXIT[`${ORDER[i]}>${ORDER[next]}`] });
+      steps.push({ path: ORDER[i], ...EXIT[`${ORDER[i]}>${ORDER[next]}`] });
       i = next;
     }
     steps.push(goal);
@@ -102,11 +120,14 @@ const Characters = (() => {
   function floorAt(px, py) {
     if (px < 92 || px > 368 || py < 36 || py > 192) return null;
     const clamp = (p, x) => ({ path: p, x: Math.max(PATHS[p].x0, Math.min(PATHS[p].x1, x)) });
+    if (px >= 101 && px < FOOT && py >= 174 && py < GROUND_Y - 2) {
+      return landingGoal(Math.min(FLOOR_DEPTH, GROUND_Y - py));
+    }
     const stairY = PATHS.stairs.y(px);
     if (px >= FOOT - 4 && px <= TOP + 2 && py > stairY - 30 && py < stairY + 8) return clamp('stairs', px);
     if (px >= 186 && py < 111) return clamp('upper', px);
     if (py >= 111) return clamp('ground', px);
-    return clamp('stairs', (px - py + GROUND_Y + FOOT) / 2); // stair hall wall: nearest point on the stairs
+    return clamp('stairs', (px - py + STAIR_FOOT_Y + FOOT) / 2);
   }
 
   function chairAt(px, py) {
@@ -119,15 +140,22 @@ const Characters = (() => {
     const v = (keys.down ? 1 : 0) - (keys.up ? 1 : 0);
     if (!h && !v) return null;
     if (c.path === 'ground') {
-      if (v < 0 && Math.abs(c.x - FOOT) < 10) return { path: 'stairs', x: TOP };
+      if (v < 0 && c.x >= ENTRY_REGION.x0 && c.x <= ENTRY_REGION.x1) return landingGoal(FLOOR_DEPTH);
       return h ? { path: 'ground', x: h < 0 ? PATHS.ground.x0 : PATHS.ground.x1 } : null;
+    }
+    if (c.path === 'landing') {
+      if (v > 0) return { path: 'ground', x: ENTRY_X };
+      if (v < 0) return { path: 'stairs', x: TOP };
+      // A sideways command naturally steps forward before crossing the room.
+      if (h) return { path: 'ground', x: h < 0 ? PATHS.ground.x0 : PATHS.ground.x1 };
+      return null;
     }
     if (c.path === 'stairs') {
       if (h > 0) return { path: 'upper', x: PATHS.upper.x1 };
-      if (h < 0) return { path: 'ground', x: PATHS.ground.x0 };
-      return { path: 'stairs', x: v < 0 ? TOP : FOOT };
+      if (h < 0 || v > 0) return landingGoal(FLOOR_DEPTH);
+      return { path: 'stairs', x: TOP };
     }
-    if (h < 0 || (v > 0 && Math.abs(c.x - TOP) < 10)) return { path: 'stairs', x: FOOT };
+    if (h < 0 || (v > 0 && Math.abs(c.x - TOP) < 10)) return landingGoal(FLOOR_DEPTH);
     return h > 0 ? { path: 'upper', x: PATHS.upper.x1 } : null;
   }
 
@@ -161,7 +189,11 @@ const Characters = (() => {
     c.goal = null;
     c.byKeys = false;
     if (c === cat && CHAIRS.includes(seat)) say('mom', 'This food is not for you, Bollu!');
-    if (!won && people.every(person => person.state === 'sit' && CHAIRS.includes(person.seat))) {
+  }
+
+  function checkWin() {
+    if (!won && !CHAIRS.includes(cat.seat) &&
+        people.every(person => person.state === 'sit' && CHAIRS.includes(person.seat))) {
       won = true;
       for (const k in keys) keys[k] = false;
       select(null);
@@ -192,33 +224,54 @@ const Characters = (() => {
   const momNearCat = () => mom.path === 'ground' && cat.path === 'ground' &&
     Math.abs(mom.x - cat.x) <= 0.6 * STOREY / 3;
 
+  let shooStarted = -Infinity;
+  const SHOO_DURATION = 0.85;
+  const momShooing = () => t - shooStarted < SHOO_DURATION;
+
   function shooCat() {
     if (selected === cat) {
       select(null);
       for (const k in keys) keys[k] = false;
     }
-    walkTo(cat, { path: 'ground', x: cat.x < (TABLE_ZONE.x0 + TABLE_ZONE.x1) / 2 ? 135 : 335 });
+    const destination = cat.x < (TABLE_ZONE.x0 + TABLE_ZONE.x1) / 2 ? 135 : 335;
+    standUp(mom);
+    mom.facing = destination < mom.x ? -1 : 1;
+    shooStarted = t;
+    walkTo(cat, { path: 'ground', x: destination });
   }
 
   // ---- Movement ---------------------------------------------------------
   function advance(c, dt) {
     while (c.route.length) {
       const wp = c.route[0];
+      if (wp.path === 'landing' && c.path !== 'landing') {
+        c.depth = c.path === 'stairs' ? LANDING_DEPTH : 0;
+      }
       c.path = wp.path;
-      if (Math.abs(wp.x - c.x) < 0.01) {
-        c.x = wp.x;
+      const inDepth = c.path === 'landing';
+      const delta = inDepth ? (wp.depth ?? 0) - c.depth : wp.x - c.x;
+      if (Math.abs(delta) < 0.01) {
+        if (inDepth) {
+          c.depth = wp.depth ?? 0;
+          c.x = landingPoint(c.depth).x;
+        } else c.x = wp.x;
         c.route.shift();
         continue;
       }
       const onStairs = c.path === 'stairs';
-      const dx = wp.x - c.x;
-      const move = Math.sign(dx) * Math.min(Math.abs(dx), c.speed * (onStairs ? STAIR_PACE : 1) * dt);
-      c.x += move;
+      const move = Math.sign(delta) * Math.min(Math.abs(delta), c.speed * (onStairs ? STAIR_PACE : 1) * dt);
+      if (inDepth) {
+        c.depth += move;
+        c.x = landingPoint(c.depth).x;
+        c.depthDirection = Math.sign(move);
+        if (c.depth > FLOOR_DEPTH) c.facing = c.depthDirection;
+      }
+      else c.x += move;
       if (move !== 0 && !hasMoved) {
         hasMoved = true;
         if (firstMoveListener) firstMoveListener();
       }
-      c.facing = move > 0 ? 1 : -1;
+      if (!inDepth) c.facing = move > 0 ? 1 : -1;
       c.dist += Math.abs(move) * (onStairs ? Math.SQRT2 : 1);
       return true;
     }
@@ -243,14 +296,25 @@ const Characters = (() => {
     t = time;
     if (won) return;
     for (const c of characters) {
-      const goal = c === selected ? keyGoal(c) : null;
+      // Pause Mom briefly for the gesture, then resume her normal movement.
+      if (c === mom && momShooing()) continue;
+      // Finish the short step off/on the stairs even if the key is released
+      // or another character is selected. Never leave someone mid-step.
+      const leavingStairs = c.byKeys && c.path === 'stairs' && c.x <= FOOT + 0.01 && c.facing < 0;
+      const finishingStep = c.byKeys && c.path === 'landing' && c.depth > FLOOR_DEPTH;
+      const goal = leavingStairs ? landingGoal(FLOOR_DEPTH) : finishingStep
+        ? (c.depthDirection < 0 ? landingGoal(FLOOR_DEPTH) : { path: 'stairs', x: FOOT })
+        : c === selected ? keyGoal(c) : null;
       if (goal) {
+        const guideToEntrance = c.path === 'ground' && goal.path === 'landing';
         standUp(c);
         if (c === cat && c.state === 'sleep') c.state = 'idle';
         c.route = route(c, goal);
         c.goal = null;
         c.pendingSeat = null;
-        c.byKeys = true;
+        // A tap on Up in the entrance region guides the character all the
+        // way to the safe floor spot; holding Up continues onto the stairs.
+        c.byKeys = !guideToEntrance;
       } else if (c.byKeys) {
         c.route = [];
         c.byKeys = false;
@@ -282,6 +346,8 @@ const Characters = (() => {
       cat.state = 'sleep';
       cat.goal = null;
     }
+    // Check after everyone moves, including when Bollu leaves a dining chair.
+    checkWin();
   }
 
   // ---- Drawing ----------------------------------------------------------
@@ -289,6 +355,11 @@ const Characters = (() => {
   function look(c) {
     const blink = t < c.blinkUntil ? 1 : 0;
     const seat = c.seat;
+    if (c === mom && momShooing()) {
+      const beat = Math.min(4, Math.floor((t - shooStarted) / 0.15));
+      const img = Sprites.momShoo[c.facing > 0 ? 'right' : 'left'][[0, 1, 0, 1, 2][beat]];
+      return { img, x: Math.round(c.x - 8) - (c.facing < 0 ? 12 : 0), y: footY(c) - img.height };
+    }
     if ((c === cat || c === mom) && seat === CUSHION) {
       const frames = c === mom ? Sprites.momGame : Sprites.catGame;
       const img = frames[Math.floor(t * (c === mom ? 6 : 7)) % frames.length];
@@ -302,7 +373,7 @@ const Characters = (() => {
       const img = c.sitSide[seat.facing > 0 ? 'right' : 'left'];
       return { img, x: seat.facing > 0 ? seat.back - 1 : seat.back - img.width + 2, y: SIDE_SEAT_Y - c.sitSide.seatRow };
     }
-    const img = c.state === 'walk'
+    const img = c.state === 'walk' && c.path !== 'landing'
       ? c.walk[c.facing > 0 ? 'right' : 'left'][Math.floor(c.dist / STEP_PX) % 4]
       : c.idle[blink];
     return { img, x: Math.round(c.x - img.width / 2), y: footY(c) - img.height };
@@ -310,6 +381,10 @@ const Characters = (() => {
 
   // Scene-space rectangle the character occupies (used for clicks too)
   function bounds(c) {
+    if (c === mom && momShooing()) {
+      // Keep the selection arrow and speech anchored to her body, not her hand.
+      return { x: Math.round(c.x - 8), y: footY(c) - Sprites.momShoo.right[0].height, w: 16, h: Sprites.momShoo.right[0].height };
+    }
     if ((c === cat && c.seat) || (c === mom && c.seat === CUSHION)) {
       const { img, x, y } = look(c);
       return { x, y, w: img.width, h: img.height };
@@ -347,7 +422,8 @@ const Characters = (() => {
   }
 
   function drawGoal(ctx, c) {
-    const x = Math.round(c.goal.x), y = Math.round(PATHS[c.goal.path].y(c.goal.x));
+    const point = pathPoint(c.goal);
+    const x = Math.round(point.x), y = Math.round(point.y);
     const r = 2 + (Math.floor(t * 6) % 3);
     ctx.globalAlpha = 0.9;
     for (let a = 0; a < 16; a++) {
@@ -479,7 +555,7 @@ const Characters = (() => {
       const point = a.cushion || a.front;
       return { x: b.x + point[0] + 0.5, y: b.y + point[1] + 0.5 };
     }
-    const sideOn = c.state === 'walk' || (c.seat && c.seat.pose === 'side');
+    const sideOn = (c === mom && momShooing()) || (c.state === 'walk' && c.path !== 'landing') || (c.seat && c.seat.pose === 'side');
     const [nx, ny] = sideOn ? a.side : a.front;
     const facingLeft = sideOn && (c.seat ? c.seat.facing < 0 : c.facing < 0);
     return { x: b.x + (facingLeft ? b.w - 1 - nx : nx) + 0.5, y: b.y + ny + 0.5 };
@@ -519,8 +595,8 @@ const Characters = (() => {
   // stairs — as a list of points on the walking line. Someone sitting
   // starts from where they'd stand up.
   function travelPath() {
-    const at = c => ({ path: c.path, x: c.x });
-    return [at(mom), ...route(mom, at(boy))].map(p => ({ x: p.x, y: PATHS[p.path].y(p.x) }));
+    const at = c => ({ path: c.path, x: c.x, depth: c.depth });
+    return [at(mom), ...route(mom, at(boy))].map(pathPoint);
   }
 
   const catSleeping = () => cat.state === 'sleep';
