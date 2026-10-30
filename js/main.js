@@ -15,7 +15,7 @@
   // Rebuilt whenever the canvas changes size: the sky and land behind the
   // house, the stars, and the per-pixel lighting maps.
   let skyLayer, landLayer, stars;
-  let lightOff, lightTv; // lighting with the TV off, and how much it adds when on
+  let lightMaps;         // empty / occupied dining table, each with TV off and its added light
   let shadeMap;          // how much of the shading each pixel gets
 
   function makeStars() {
@@ -39,22 +39,25 @@
     skyLayer = House.buildSky(View);
     landLayer = House.buildLand(View);
     stars = makeStars();
-    lightOff = House.buildLightMap(false, View);
-    const lightOn = House.buildLightMap(true, View);
-    lightTv = lightOn.map((v, i) => v - lightOff[i]);
+    lightMaps = [false, true].map(occupied => {
+      const off = House.buildLightMap(false, View, occupied);
+      const on = House.buildLightMap(true, View, occupied);
+      return { off, tv: on.map((v, i) => v - off[i]) };
+    });
     shadeMap = House.buildShadeMap(View);
   }
 
   // Grey out and light the background: only the table lamp and the TV
   // light the scene, and it gets darker the further you are from them.
   function shadeBackground(amount) {
+    const { off, tv } = lightMaps[Characters.anyoneAtTable() ? 1 : 0];
     const img = ctx.getImageData(0, 0, canvas.width, canvas.height), d = img.data;
     for (let i = 0, p = 0; i < d.length; i += 4, p++) {
       const s = shadeMap[p];
       if (!s) continue;
       const grey = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
       const desat = amount * s;
-      const light = 1 - (1 - (lightOff[p] + lightTv[p] * tvLevel)) * s;
+      const light = 1 - (1 - (off[p] + tv[p] * tvLevel)) * s;
       d[i] = (d[i] + (grey - d[i]) * desat) * light;
       d[i + 1] = (d[i + 1] + (grey - d[i + 1]) * desat) * light;
       d[i + 2] = (d[i + 2] + (grey - d[i + 2]) * desat) * light;
@@ -64,6 +67,7 @@
 
   const L = House.LAYOUT;
   const houseLayer = House.buildHouse();
+  const lampGlow = House.buildLampGlow();
   const tvLayer = Px.canvas(L.tvScreen.w, L.tvScreen.h);
   const tvg = tvLayer.getContext('2d');
 
@@ -379,12 +383,14 @@
       if (tvLevel > 0) Px.glow(ctx, L.tvScreen.x + 28, L.tvScreen.y + 16, 46, '#7fd6ff', flicker * tvLevel, 4);
     });
     clipTo(L.groundRoom, () => {
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = 0.05;
-      Px.poly(ctx, [[219, 137], [236, 137], [264, 176], [190, 176]], '#ffd27a');
-      ctx.restore();
-      Px.glow(ctx, L.lamp.x, L.lamp.y, 44, '#ffc266', 0.045, 5);
+      if (Characters.anyoneAtTable()) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.drawImage(lampGlow, 0, 0);
+        ctx.restore();
+      } else {
+        Px.glow(ctx, L.lamp.x, L.lamp.y, 44, '#ffc266', 0.045, 5);
+      }
     });
     Px.glow(ctx, L.lantern.x, L.lantern.y, 9, '#ffb84d', 0.07 + 0.03 * Math.sin(t * 5), 3);
 

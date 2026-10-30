@@ -655,5 +655,6 @@ const Characters = (() => {
   }
 
   const catSleeping = () => cat.state === 'sleep';
-  return { STOREY, init, update, draw, catSleeping, onSelect, onDialogue, onWin, onFirstMove, onObjective, boyAtTv, distancePair, setDistancePair, necks, eyes, headTop, travelPath, drawReflection, viewer, voice };
+  const anyoneAtTable = () => characters.some(c => c.state === 'sit' && CHAIRS.includes(c.seat));
+  return { STOREY, init, update, draw, catSleeping, anyoneAtTable, onSelect, onDialogue, onWin, onFirstMove, onObjective, boyAtTv, distancePair, setDistancePair, necks, eyes, headTop, travelPath, drawReflection, viewer, voice };
 })();

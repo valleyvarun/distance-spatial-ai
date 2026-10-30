@@ -831,7 +831,34 @@ const House = (() => {
   // off with distance from them, and each light stays inside its own room.
   // Outside the house only a faint spill remains. Built once with the TV on
   // and once with it off; main.js blends between the two.
-  function buildLightMap(tvOn, view) {
+  // Both layers originate at the bulb: a downward cone and a softer round halo.
+  function lampBeam(x, y) {
+    const dx = Math.abs(x - LAYOUT.lamp.x), dy = y - LAYOUT.lamp.y;
+    if (dy < 0 || dy > 65) return 0;
+    const halfWidth = 8 + dy * 0.95;
+    const edge = Math.max(0, Math.min(1, (halfWidth - dx) / 10));
+    return edge * edge * (3 - 2 * edge) * (1 - dy / 65) ** 0.6;
+  }
+
+  function lampHalo(x, y) {
+    const distance = Math.hypot(x - LAYOUT.lamp.x, y - LAYOUT.lamp.y);
+    return Math.max(0, 1 - distance / 52) ** 2;
+  }
+
+  function buildLampGlow() {
+    const c = Px.canvas(W, H), g = c.getContext('2d');
+    const room = LAYOUT.groundRoom;
+    for (let y = room.y; y < room.y + room.h; y++) {
+      for (let x = room.x; x < room.x + room.w; x++) {
+        const alpha = 0.1 * lampBeam(x, y) + 0.3 * lampHalo(x, y);
+        if (alpha < 0.002) continue;
+        Px.dot(g, x, y, `rgba(255, 204, 120, ${alpha})`);
+      }
+    }
+    return c;
+  }
+
+  function buildLightMap(tvOn, view, tableOccupied = false) {
     const AMBIENT = 0.3, OUTSIDE = 0.28;
     const lamp = LAYOUT.lamp;
     const tv = { x: LAYOUT.tvScreen.x + LAYOUT.tvScreen.w / 2, y: LAYOUT.tvScreen.y + LAYOUT.tvScreen.h / 2 };
@@ -850,7 +877,9 @@ const House = (() => {
         const stairHall = inHouse && x < 186;
         let light;
         if (inHouse) {
-          const fromLamp = upstairs ? 0 : falloff(x, y, lamp, 22, 175);
+          const fromLamp = upstairs ? 0 : tableOccupied
+            ? 0.45 * lampBeam(x, y) + 0.75 * lampHalo(x, y) + 0.2 * falloff(x, y, lamp, 22, 175)
+            : falloff(x, y, lamp, 22, 175);
           const fromTv = upstairs || stairHall ? falloff(x, y, tv, 30, 160) : 0;
           light = AMBIENT + (1 - AMBIENT) * Math.min(1, fromLamp + fromTv);
         } else {
@@ -863,5 +892,5 @@ const House = (() => {
     return map;
   }
 
-  return { LAYOUT, buildSky, buildLand, buildHouse, buildTableMask, buildShadeMap, buildLightMap };
+  return { LAYOUT, buildSky, buildLand, buildHouse, buildTableMask, buildShadeMap, buildLightMap, buildLampGlow };
 })();
