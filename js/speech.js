@@ -4,17 +4,19 @@ const Speech = (() => {
   const LINES = {
     mom: 'Varun, come down and eat your dinner!',
     boy: 'Amma, im coming down...',
+    cat: 'meaow!',
   };
   const TYPE_SPEED = 28; // letters per second
   const LINGER = 3.5;    // seconds the finished line stays up before fading
 
   const bubble = document.getElementById('speech');
   const canvas = document.getElementById('scene');
-  let who = null, text = '', start = 0, shown = -1, fadeTimer = null;
+  let who = null, text = '', start = 0, shown = -1, fadeTimer = null, requiresSound = false;
 
-  function say(speaker) {
+  function say(speaker, line = null) {
     who = speaker;
-    text = LINES[speaker];
+    text = line ?? LINES[speaker];
+    requiresSound = line === null;
     start = performance.now();
     shown = -1;
     clearTimeout(fadeTimer);
@@ -51,7 +53,7 @@ const Speech = (() => {
   }
 
   function frame(now) {
-    if (who && !Distances.active.sound) hide();
+    if (who && requiresSound && !Distances.active.sound) hide();
     if (who) {
       // Type out one more letter at a time, with a blinking cursor
       const count = Math.min(text.length, Math.floor(((now - start) / 1000) * TYPE_SPEED));

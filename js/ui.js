@@ -40,6 +40,7 @@
   Characters.onSelect(who => {
     if (who && Distances.active.sound) Speech.say(who);
   });
+  Characters.onDialogue((who, line) => Speech.say(who, line));
 
   // ---- Distance toggles ---------------------------------------------------
   for (const button of document.querySelectorAll('[data-distance]')) {

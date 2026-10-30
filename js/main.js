@@ -240,9 +240,24 @@
   }
 
   // ---- Cat ---------------------------------------------------------------
-  function drawCat(t) {
-    const { x, y } = L.cat; // centre of the cushion
+  function drawCat(ctx, x, y, t, state, facing, dist) {
     const out = '#3a2420', fur = '#ff9a3c', dark = '#d0702a', cream = '#fff3e0';
+    if (state !== 'sleep') {
+      ctx.save();
+      ctx.translate(x, y + 3);
+      ctx.scale(facing, 1);
+      const step = state === 'walk' ? Math.floor(dist / 4) % 2 : 0;
+      Px.rect(ctx, -9, -8, 3, 2, out); Px.rect(ctx, -10, -11, 2, 4, fur);
+      Px.ellipse(ctx, -1, -7, 7, 4, out); Px.ellipse(ctx, -1, -7, 6, 3, fur);
+      Px.disc(ctx, 6, -9, 4, out); Px.disc(ctx, 6, -9, 3, fur);
+      Px.rect(ctx, 3, -14, 2, 3, out); Px.rect(ctx, 8, -14, 2, 3, out);
+      Px.dot(ctx, 4, -13, '#ff9aa8'); Px.dot(ctx, 8, -13, '#ff9aa8');
+      Px.dot(ctx, 8, -9, out); Px.dot(ctx, 9, -7, '#ff7a8a');
+      for (const dx of [-4, -1, 2]) Px.dot(ctx, dx, -9, dark);
+      Px.rect(ctx, -5, -4, 2, 4 - step, out); Px.rect(ctx, 3, -4, 2, 3 + step, out);
+      ctx.restore();
+      return;
+    }
     const breathe = Math.sin(t * 2.2) > 0 ? 1 : 0;
     const tail = Math.floor(t / 3) % 3 === 0 && t % 3 < 0.5 ? 1 : 0;
 
@@ -300,7 +315,7 @@
       if (p.x > L.gardenEdge || p.y > p.land) petals[i] = spawnPetal(false);
     }
 
-    // The TV (and speakers) are on only while the boy sits in front of it
+    // The TV and speakers are on while anyone is gaming.
     const tvTarget = Characters.boyAtTv() ? 1 : 0;
     tvLevel += Math.sign(tvTarget - tvLevel) * Math.min(Math.abs(tvTarget - tvLevel), dt / 0.4);
 
@@ -317,7 +332,7 @@
     }
 
     zeeTimer -= dt;
-    if (zeeTimer <= 0) {
+    if (zeeTimer <= 0 && Characters.catSleeping()) {
       zeeTimer = 2.2;
       zees.push({ x: L.cat.x - 6, y: L.cat.y - 14, age: 0, life: 2 });
     }
@@ -403,8 +418,7 @@
       ctx.fillRect(x, y, 1, 2);
     }
 
-    // Cat napping under the stairs
-    drawCat(t);
+    // Sleep marks drift away after the cat wakes.
     for (const z of zees) {
       const a = Math.min(1, z.age * 3) * (1 - z.age / z.life);
       glyph(ZEE, z.x, z.y, '#ffffff', a);
@@ -427,7 +441,7 @@
     tableG.drawImage(tableMask, 0, 0);
     tableG.globalCompositeOperation = 'source-over';
 
-    Characters.draw(ctx, tableOverlay);
+    Characters.draw(ctx, tableOverlay, drawCat);
     Distances.draw(ctx, t);
     ctx.restore();
   }

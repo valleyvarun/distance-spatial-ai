@@ -353,7 +353,167 @@ const Sprites = (() => {
     above: 22,
   };
 
+  // ---- Mom gaming: seated cross-legged, facing the TV ------------------
+  // Her hair and clip stay recognizable from behind. The seated skirt and
+  // tucked slippers stay planted while her hands work the controller.
+  const MOM_GAME_HEAD = [
+    '......kkkk',
+    '....kkhhhh',
+    '...khhhhHH',
+    '..khhhHHHH',
+    '.khhhHHhhhhhhhhhrhk.',
+    '.khhHHhhhhhhhhhhrrk.',
+    '.khhHhhhhh',
+    '.khhhhhhhh',
+    '.khhhhhhHH',
+    '.khhhhhHHh',
+    '.khhhhhhHh',
+    '..khhhhhhh',
+    '..khhhhhhh',
+    '..khhdhhhh',
+    '..khhdhhhh',
+    '..khhddhhh',
+    '...khddhhh',
+    '...khddhhh',
+    '....kddhhh',
+    '....kdddhh',
+    '.....kddhh',
+    '......kkkk',
+  ];
+  const MOM_GAME_BODY = [
+    '.....kpppppp',
+    '....kppppppp',
+    '...kpppppppp',
+    '..kppPpppppp',
+    '..kppPpppppp',
+    '.kpppPpppppp',
+    '.kppPPpppppp',
+    '.kppPkpppppp',
+    '..ksskpppppp',
+    '...ksskggggg',
+    '....kkgugggg',
+    '.....kgggggg',
+    '....kllAAAAA',
+    '...klllLllll',
+    '..klllllLLll',
+    '.kllllLLllll',
+    '.kffkllllLLl',
+    '..kffkLLLLLL',
+    '...kkkkkkkkk',
+  ];
+  const momGame = Array.from({ length: 4 }, (_, frame) => {
+    const body = toGrid(MOM_GAME_BODY, 24);
+    // Alternate the thumbs and elbows, with a brief recovery pose.
+    if (frame === 1 || frame === 2) {
+      body[7][2] = '.'; body[7][3] = 'k';
+      body[8][4] = 's'; body[9][5] = 's';
+      body[10][7] = 'k';
+    }
+    if (frame === 2 || frame === 3) {
+      body[7][21] = '.'; body[7][20] = 'k';
+      body[8][19] = 's'; body[9][18] = 's';
+      body[10][16] = 'b';
+    }
+    const grid = Array.from({ length: 33 }, () => Array(24).fill('.'));
+    body.forEach((row, y) => row.forEach((ch, x) => { grid[y + 14][x] = ch; }));
+    const bob = frame === 2 ? 1 : 0;
+    toGrid(MOM_GAME_HEAD, 20).forEach((row, y) => row.forEach((ch, x) => {
+      if (ch !== '.') grid[y + bob][x + 2] = ch;
+    }));
+    return Px.sprite(grid.map(row => row.join('')), { ...MOM_PALETTE, g: '#51446d', u: '#5ad1ff', b: '#ff5d8f' }, 24);
+  });
+
+  // ---- Bollu: upright on the chairs, back to us at the game -------------
+  const CAT_PALETTE = {
+    k: '#3a2420', f: '#ff9a3c', h: '#ffbd70', d: '#d0702a',
+    c: '#fff3e0', p: '#ff9aa8', e: '#79c85b',
+    g: '#51446d', b: '#ff5d8f', u: '#5ad1ff',
+  };
+  const CAT_SIT_SIDE = [
+    '.......k....k...',
+    '......kfk..kfk..',
+    '......kpfkkpfk..',
+    '.....kfffffffk..',
+    '.....kfhfffffk..',
+    '.....kfffkefck..',
+    '.....kfffffcpk..',
+    '......kffccck...',
+    '......kfccck....',
+    '.....kffccfk....',
+    '....kdffccfk....',
+    '...kfdffccfk....',
+    '..kfffffccfk....',
+    '..kfdfffccfk....',
+    '..kfdfffccfk....',
+    '.kffffffcfck....',
+    '.kffffkfckfck...',
+    'kddfffkfckfck...',
+    'kfffffkcckcck...',
+    '.kkkkkkkkkkkk...',
+  ];
+  const CAT_SIT_FRONT = [
+    '..k..........k..',
+    '..kfk......kfk..',
+    '..kpfkkkkkkfpk..',
+    '..kffffddffffk..',
+    '.kfhfffddfffhfk.',
+    '.kffkeffffekffk.',
+    '.kffkcffffckffk.',
+    '..kffccppccffk..',
+    '...kcccccccck...',
+    '....kfccccfk....',
+    '...kffccccffk...',
+    '...kdfccccfdk...',
+    '..kfdfccccfdfk..',
+    '..kfffccccfffk..',
+    '..kfffccccfffk..',
+    '..kffkfcckffk...',
+    '..kffkfcckffk...',
+    '..kcckfcckcck...',
+    '.kdddffffffdddk.',
+    '..kkkkkkkkkkkk..',
+  ];
+  const CAT_GAME = [
+    '....k..........k....',
+    '....kfk......kfk....',
+    '....kpfkkkkkkfpk....',
+    '....kffffddffffk....',
+    '...kffhffddffhffk...',
+    '...kfffffddfffffk...',
+    '...kffffffffffffk...',
+    '....kffffddffffk....',
+    '.....kffffddffk.....',
+    '......kffffffk......',
+    '.....kffddddffk.....',
+    '....kffffddffffk....',
+    '...kfcfffddfffcfk...',
+    '..kcckfffddfffkcck..',
+    '..kgggkffffffkgggk..',
+    '..kgugkffffffkgbgk..',
+    '...kkkffffffffkkk...',
+    '....kdffffffffdk....',
+    '....kddffffffddk....',
+    '.....kffffffffk.....',
+    '.....kddddfffffkk...',
+    '......kkkkkkkkkk....',
+  ];
+  // Explicit padding keeps these asymmetrical poses from being mirrored.
+  const catSprite = (rows, width) => Px.sprite(rows.map(row => row.padEnd(width, '.')), CAT_PALETTE, width);
+  const catSide = catSprite(CAT_SIT_SIDE, 16);
+  const catSitSide = { right: catSide, left: Px.flip(catSide), seatRow: 19 };
+  const catSitFront = {
+    frames: [catSprite(CAT_SIT_FRONT, 16), catSprite(CAT_SIT_FRONT.map((row, i) =>
+      i === 5 ? '.kffkkffffkkffk.' : i === 6 ? '.kffffffffffffk.' : row), 16)],
+    above: 14,
+  };
+  const catGame = [catSprite(CAT_GAME, 20), catSprite(CAT_GAME.map((row, i) =>
+    i === 13 ? '...kccfffddfffcck...' : i === 15 ? '..kgbgkffffffkgugk..' : row), 20)];
+
   return {
+    momGame,
+    catSitSide,
+    catSitFront,
+    catGame,
     momSitSide,
     momSitFront,
     boySitSide,

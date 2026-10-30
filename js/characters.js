@@ -44,10 +44,10 @@ const Characters = (() => {
     walk: Sprites.momWalk, idle: [Sprites.mom, Sprites.momBlink],
     sitSide: Sprites.momSitSide, sitFront: Sprites.momSitFront,
     anchors: {
-      neck: { front: [8.5, 16], side: [10.5, 16] },
-      eye: { front: [8.5, 10], side: [11.5, 10] },
-      mouth: { front: [8.5, 13], side: [14.5, 13] },
-      ear: { front: [8.5, 11], side: [6.5, 11] },
+      neck: { front: [8.5, 16], side: [10.5, 16], cushion: [11.5, 15] },
+      eye: { front: [8.5, 10], side: [11.5, 10], cushion: [11.5, 9] },
+      mouth: { front: [8.5, 13], side: [14.5, 13], cushion: [11.5, 12] },
+      ear: { front: [8.5, 11], side: [6.5, 11], cushion: [11.5, 10] },
     },
   };
   const boy = {
@@ -62,7 +62,12 @@ const Characters = (() => {
     },
   };
   const people = [mom, boy];
-  for (const c of people) {
+  const cat = {
+    name: 'Bollu', path: 'ground', x: House.LAYOUT.cat.x, speed: 38, state: 'sleep', seat: null,
+    sitSide: Sprites.catSitSide, sitFront: Sprites.catSitFront,
+  };
+  const characters = [...people, cat];
+  for (const c of characters) {
     Object.assign(c, { facing: 1, dist: 0, route: [], goal: null, pendingSeat: null, byKeys: false, nextBlink: 1 + Math.random() * 3, blinkUntil: 0 });
   }
 
@@ -129,15 +134,33 @@ const Characters = (() => {
   // ---- Sitting ----------------------------------------------------------
   const nearTable = c => (c.seat && c.seat !== CUSHION) ||
     (c.path === 'ground' && c.x >= TABLE_ZONE.x0 && c.x <= TABLE_ZONE.x1);
-  const takenBy = (chair, c) => people.find(o => o !== c && (o.seat === chair || o.pendingSeat === chair));
+  const takenBy = (chair, c) => characters.find(o => o !== c && (o.seat === chair || o.pendingSeat === chair));
+  let dialogueListener = null;
+  const onDialogue = fn => { dialogueListener = fn; };
+  const say = (who, line) => { if (dialogueListener) dialogueListener(who, line); };
+  const idOf = c => c === mom ? 'mom' : c === boy ? 'boy' : 'cat';
 
   function sit(c, seat) {
+    if (seat === CUSHION) {
+      const previous = characters.find(other => other !== c && other.seat === CUSHION);
+      if (previous) {
+        standUp(previous);
+        previous.x = CUSHION.x - 25;
+        previous.route = [];
+        previous.goal = null;
+        previous.pendingSeat = null;
+        previous.byKeys = false;
+        say(idOf(previous), previous === cat ? 'meow, meow' : 'heyy!!');
+      }
+    }
     c.seat = seat;
     c.state = 'sit';
     c.x = seat.x;
     c.pendingSeat = null;
     c.route = [];
     c.goal = null;
+    c.byKeys = false;
+    if (c === cat && CHAIRS.includes(seat)) say('mom', 'This food is not for you, Bollu!');
     if (!won && people.every(person => person.state === 'sit' && CHAIRS.includes(person.seat))) {
       won = true;
       for (const k in keys) keys[k] = false;
@@ -158,11 +181,23 @@ const Characters = (() => {
 
   function walkTo(c, goal, seat = null) {
     standUp(c);
+    if (c === cat && c.state === 'sleep') c.state = 'idle';
     c.route = route(c, goal);
     c.goal = goal;
     c.pendingSeat = seat;
     c.byKeys = false;
     if (seat && c.path === goal.path && Math.abs(c.x - goal.x) < 0.5) sit(c, seat);
+  }
+
+  const momNearCat = () => mom.path === 'ground' && cat.path === 'ground' &&
+    Math.abs(mom.x - cat.x) <= 0.6 * STOREY / 3;
+
+  function shooCat() {
+    if (selected === cat) {
+      select(null);
+      for (const k in keys) keys[k] = false;
+    }
+    walkTo(cat, { path: 'ground', x: cat.x < (TABLE_ZONE.x0 + TABLE_ZONE.x1) / 2 ? 135 : 335 });
   }
 
   // ---- Movement ---------------------------------------------------------
@@ -191,14 +226,15 @@ const Characters = (() => {
   }
 
   function arrive(c) {
+    const headingToGame = c.goal?.path === 'upper' && Math.abs(c.goal.x - CUSHION.x) < 6;
     c.state = 'idle';
     c.dist = 0;
     c.goal = null;
     if (c.pendingSeat) {
       const seat = c.pendingSeat;
       c.pendingSeat = null;
-      if (!takenBy(seat, c)) sit(c, seat); // unless someone got there first
-    } else if (c === boy && c.path === 'upper' && Math.abs(c.x - CUSHION.x) < 6) {
+      if (seat === CUSHION || !takenBy(seat, c)) sit(c, seat); // the gaming spot can be taken over
+    } else if (headingToGame && c.path === 'upper' && Math.abs(c.x - CUSHION.x) < 6) {
       sit(c, CUSHION); // back at the TV: sit down and keep playing
     }
   }
@@ -206,10 +242,11 @@ const Characters = (() => {
   function update(dt, time) {
     t = time;
     if (won) return;
-    for (const c of people) {
+    for (const c of characters) {
       const goal = c === selected ? keyGoal(c) : null;
       if (goal) {
         standUp(c);
+        if (c === cat && c.state === 'sleep') c.state = 'idle';
         c.route = route(c, goal);
         c.goal = null;
         c.pendingSeat = null;
@@ -219,13 +256,31 @@ const Characters = (() => {
         c.byKeys = false;
       }
 
-      if (advance(c, dt)) c.state = 'walk';
+      const oldX = c.x, oldPath = c.path;
+      if (advance(c, dt)) {
+        c.state = 'walk';
+        // Entering the gaming spot takes it over. Starting at its centre
+        // and walking away must not immediately seat the character again.
+        if (c.byKeys && oldPath === 'upper' && c.path === 'upper' &&
+            (oldX - CUSHION.x) * (c.x - CUSHION.x) <= 0 && oldX !== CUSHION.x) {
+          sit(c, CUSHION);
+          for (const k in keys) keys[k] = false;
+        }
+      }
       else if (c.state === 'walk') arrive(c);
 
       if (t > c.nextBlink) {
         c.blinkUntil = t + 0.14;
         c.nextBlink = t + 2.2 + Math.random() * 3;
       }
+    }
+    if (CHAIRS.includes(cat.seat) && momNearCat()) shooCat();
+    // Settle back onto the mat only after stopping, not while passing it.
+    if (cat.state === 'idle' && !cat.route.length && !cat.seat &&
+        cat.path === 'ground' && Math.abs(cat.x - House.LAYOUT.cat.x) <= 8) {
+      cat.x = House.LAYOUT.cat.x;
+      cat.state = 'sleep';
+      cat.goal = null;
     }
   }
 
@@ -234,6 +289,11 @@ const Characters = (() => {
   function look(c) {
     const blink = t < c.blinkUntil ? 1 : 0;
     const seat = c.seat;
+    if ((c === cat || c === mom) && seat === CUSHION) {
+      const frames = c === mom ? Sprites.momGame : Sprites.catGame;
+      const img = frames[Math.floor(t * (c === mom ? 6 : 7)) % frames.length];
+      return { img, x: Math.round(c.x - img.width / 2), y: UPPER_Y - 2 - img.height };
+    }
     if (seat && seat.pose === 'front') {
       const img = c.sitFront.frames[blink];
       return { img, x: Math.round(seat.x - img.width / 2), y: TABLE_TOP - c.sitFront.above };
@@ -250,17 +310,36 @@ const Characters = (() => {
 
   // Scene-space rectangle the character occupies (used for clicks too)
   function bounds(c) {
+    if ((c === cat && c.seat) || (c === mom && c.seat === CUSHION)) {
+      const { img, x, y } = look(c);
+      return { x, y, w: img.width, h: img.height };
+    }
     if (c.seat === CUSHION) return { x: Math.round(c.x) - 10, y: CUSHION.top, w: 20, h: 26 };
+    if (c === cat) return { x: Math.round(c.x) - 10, y: footY(c) - 17, w: 21, h: 17 };
     const { img, x, y } = look(c);
     return { x, y, w: img.width, h: img.height };
   }
 
+  let drawCat;
   function drawPerson(ctx, c) {
+    if (c === cat) {
+      if (c.seat) {
+        const { img, x, y } = look(c);
+        ctx.drawImage(img, x, y);
+        return;
+      }
+      return drawCat(ctx, Math.round(c.x), footY(c) - 3, t, c.state, c.facing, c.dist);
+    }
     if (c.seat === CUSHION) {
       // Head bobs to the music, elbows mash buttons
       const b = bounds(c);
-      ctx.drawImage(Sprites.boyBody[Math.floor(t * 7) % 2], b.x, b.y + 14);
-      ctx.drawImage(Sprites.boyHead, b.x, b.y + Math.floor(t * 2.4) % 2);
+      if (c === boy) {
+        ctx.drawImage(Sprites.boyBody[Math.floor(t * 7) % 2], b.x, b.y + 14);
+        ctx.drawImage(Sprites.boyHead, b.x, b.y + Math.floor(t * 2.4) % 2);
+      } else {
+        const { img, x, y } = look(c);
+        ctx.drawImage(img, x, y);
+      }
       return;
     }
     const { img, x, y } = look(c);
@@ -280,12 +359,13 @@ const Characters = (() => {
 
   // `tableOverlay` is the shaded table on its own, drawn back over anyone
   // sitting at it so their lap tucks in behind the tablecloth.
-  function draw(ctx, tableOverlay) {
+  function draw(ctx, tableOverlay, catRenderer) {
+    drawCat = catRenderer;
     if (selected && selected.goal) drawGoal(ctx, selected);
-    const atTable = people.filter(c => c.seat && c.seat !== CUSHION);
+    const atTable = characters.filter(c => c.seat && c.seat !== CUSHION);
     for (const c of atTable) drawPerson(ctx, c);
     if (atTable.length) ctx.drawImage(tableOverlay, 0, 0);
-    const rest = people.filter(c => !atTable.includes(c) && c !== selected);
+    const rest = characters.filter(c => !atTable.includes(c) && c !== selected);
     if (selected && !atTable.includes(selected)) rest.push(selected);
     for (const c of rest) drawPerson(ctx, c);
 
@@ -307,7 +387,7 @@ const Characters = (() => {
   }
 
   function personAt(px, py) {
-    const order = people.filter(c => c !== selected);
+    const order = characters.filter(c => c !== selected);
     if (selected) order.push(selected);
     for (const c of order.reverse()) {
       const b = bounds(c);
@@ -321,7 +401,7 @@ const Characters = (() => {
 
   function select(c) {
     selected = c;
-    if (selectListener) selectListener(c === mom ? 'mom' : c === boy ? 'boy' : null);
+    if (selectListener) selectListener(c ? idOf(c) : null);
   }
 
   function onPointerDown(e) {
@@ -329,10 +409,24 @@ const Characters = (() => {
     const [px, py] = scenePoint(e);
     const chair = chairAt(px, py);
     const hit = personAt(px, py);
+    // Switching characters always takes priority over destination actions,
+    // including when the character being clicked is playing the game.
+    if (hit && hit !== selected) return select(hit);
+    // Shoo Bollu only when Mom is close and Bollu is at the table.
+    if (hit === cat && nearTable(cat) && momNearCat()) {
+      shooCat();
+      return;
+    }
     // Standing right in front of a chair shouldn't stop you clicking it
-    const wantsChair = hit === selected && chair && selected.seat !== chair;
+    const wantsChair = hit && hit === selected && chair && selected.seat !== chair;
     if (hit && !wantsChair) return select(hit === selected ? null : hit);
     if (!selected) return;
+
+    // Click the TV itself to send the selected character to the gaming spot.
+    const tv = House.LAYOUT.tvScreen;
+    if (px >= tv.x && px < tv.x + tv.w && py >= tv.y && py < tv.y + tv.h) {
+      return walkTo(selected, { path: 'upper', x: CUSHION.x }, CUSHION);
+    }
 
     // A free chair: sit if close to the table, otherwise just walk over
     if (chair && selected.seat !== chair) {
@@ -376,12 +470,15 @@ const Characters = (() => {
   }
 
   // The TV and speakers only run while the boy is on his cushion
-  const boyAtTv = () => boy.seat === CUSHION;
+  const boyAtTv = () => characters.some(c => c.seat === CUSHION);
 
   // Centre of a character's neck or eyes in world coordinates, whatever their pose
   function anchorOf(c, part) {
     const b = bounds(c), a = c.anchors[part];
-    if (c.seat === CUSHION) return { x: b.x + a.cushion[0] + 0.5, y: b.y + a.cushion[1] + 0.5 };
+    if (c.seat === CUSHION) {
+      const point = a.cushion || a.front;
+      return { x: b.x + point[0] + 0.5, y: b.y + point[1] + 0.5 };
+    }
     const sideOn = c.state === 'walk' || (c.seat && c.seat.pose === 'side');
     const [nx, ny] = sideOn ? a.side : a.front;
     const facingLeft = sideOn && (c.seat ? c.seat.facing < 0 : c.facing < 0);
@@ -407,7 +504,7 @@ const Characters = (() => {
 
   // Top-centre of someone's head ('mom' or 'boy'), in world coordinates
   function headTop(who) {
-    const b = bounds(who === 'mom' ? mom : boy);
+    const b = bounds(who === 'mom' ? mom : who === 'cat' ? cat : boy);
     return { x: b.x + b.w / 2, y: b.y };
   }
 
@@ -426,5 +523,6 @@ const Characters = (() => {
     return [at(mom), ...route(mom, at(boy))].map(p => ({ x: p.x, y: PATHS[p.path].y(p.x) }));
   }
 
-  return { STOREY, init, update, draw, onSelect, onWin, onFirstMove, boyAtTv, necks, eyes, headTop, travelPath, drawReflection, viewer, voice };
+  const catSleeping = () => cat.state === 'sleep';
+  return { STOREY, init, update, draw, catSleeping, onSelect, onDialogue, onWin, onFirstMove, boyAtTv, necks, eyes, headTop, travelPath, drawReflection, viewer, voice };
 })();
